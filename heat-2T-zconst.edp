@@ -1,0 +1,129 @@
+include "getARGV.idp"
+// file: heat-2T-Nonlinear-(un)limited_diffusion.edp
+////////////////////方程参数////////////////////////////
+
+string bcase = getARGV("-beta", "linear");
+string gcase = getARGV("-g", "const");
+real dt = getARGV("-dt", 5.0e-4);
+real TOL = getARGV("-tol", 1.0e-9);
+string outpath = getARGV("-out", "./out.txt");
+
+/************************电离度函数zeff(x)**************/
+//zeff function equal to 1.0
+func zeff = 1.0;
+
+/************************Robin边界条件beta函数**********/
+real t1 = getARGV("-t1", 0.5);
+real bmax = getARGV("-bmax", 10);
+func real beta(real t, real t1, real BetaMax, string bcase)
+{
+	if (bcase == "linear"){
+		if(t<t1) 
+			return (BetaMax/t1)*t;
+		else
+			return BetaMax;}
+	
+	if (bcase == "zero"){
+		return 0.0;
+	}
+}
+
+/************************初值条件g函数******************/
+//r0为初始高斯半径，Tmax>0为高斯初始峰值
+real r0 = getARGV("-r0", 0.1);
+real Tmax = getARGV("-Tmax", 100);
+func real g(real r0, real Tmax, string gcase) 
+{
+	if (gcase == "const"){
+		return 1.0e-3;
+	}
+
+	if (gcase == "gauss"){
+		return 1.0e-3+Tmax*exp(-(x^2+y^2)/r0^2);
+	}
+}
+
+func source = 0.0;//right volume source，default being zero
+real Beta;//根据当前模拟时刻取beta函数值存为该实数
+//Terminal Time and time-step setup
+real T=1.0, dt=5.0e-4;
+//Space domain configuration
+real x0 = 0, x1 = 1;
+real y0 = 0, y1 = 1;
+int Nx = 256, Ny = 256;
+//Mesh: Nx*Ny in 2D domain [x0,x1]x[y0,y1]
+mesh Th = square(Nx,Ny,[x0+(x1-x0)*x,y0+(y1-y0)*y]);
+//FEM space
+fespace Vh(Th,P1);
+//Some functions belonging to P1 space
+Vh u, uold, v, us,residual;
+Vh Te, Told, w, Ts,residual2;
+//plot(Th,wait=false);
+//Define the 2T diffusion Problem
+problem Heat([u,Te],[v,w])
+		=  int2d(Th)(
+		    //u*v/dt+(1.0/(3.0/Ts^3.0))*(dx(u)*dx(v)+dy(u)*dy(v)))//最早的算例：unlimit DUL
+			//+int2d(Th)(-1.0/Ts^3.0*(Ts^3*Te*v-u*v))//最早的算例：交换项系数original exchange term
+			
+		    //u*v/dt+(1.0/(3.0*zeff^3.0/us^0.75))*(dx(u)*dx(v)+dy(u)*dy(v)))//unlimit DUL
+		    u*v/dt+(1.0/(3.0*zeff^3.0/us^0.75+sqrt(dx(us)^2+dy(us)^2)/us))*(dx(u)*dx(v)+dy(u)*dy(v)))//limited DL
+		    +int2d(Th)(-zeff^3.0/us^0.75*(Ts^3*Te*v-u*v))//exchange term
+		   
+		    +int1d(Th,1,2,3,4)(0.5*u*v) //Robin BC 
+		    -int1d(Th,4)(Beta*v)//4：non-zero Robin functions only imposed on the left-side
+		   
+		   -int2d(Th)(source*v)
+           -int2d(Th)(uold*v/dt)
+		   //+int2d(Th)(Te*w/dt+(Ts^2.5*0.01)*(dx(Te)*dx(w)+dy(Te)*dy(w)))//最早的算例unlimit KUL
+		   //+int2d(Th)(-1.0/Ts^3.0*(u*w-Ts^3*Te*w))//最早的exchange term
+		   
+		  //+int2d(Th)(Te*w/dt+(Ts^2.5/zeff)*(dx(Te)*dx(w)+dy(Te)*dy(w)))//unlimit KUL
+		    +int2d(Th)(Te*w/dt+(Ts^4/(zeff*Ts^1.5+Ts^2.5*sqrt(dx(Ts)^2+dy(Ts)^2)))*(dx(Te)*dx(w)+dy(Te)*dy(w)))//limited KL
+		   +int2d(Th)(-zeff^3.0/us^0.75*(u*w-Ts^3*Te*w))//exchange term 
+		   -int2d(Th)(source*w)
+           -int2d(Th)(Told*w/dt);
+//Begin Time marching
+u = g(r0, Tmax, gcase);//initialization u with initial function g 
+uold =u;
+us =u;
+Te=u^(1.0/4.0);
+Told =u^(1.0/4.0);
+Ts =u^(1.0/4.0);
+int MAXITER = 100;
+real TOL = 1.0e-9;
+ofstream output(outpath);
+for(real t=0;t<T;t+=dt)
+{
+    for(int iter=0;iter<MAXITER;iter++)
+   {
+    Beta = beta(t+dt, t1, bmax, bcase);//含时变化的边界条件函数beta
+	Heat;
+	u = max(u,1.0e-6);
+	Te = max(Te,(1.0e-6)^1./4.);
+	residual = u-us;
+	residual2 = Te-Ts;
+	cout<<"current time: "<<t<<", Iter: "<<iter<<", Max residual: "<<residual[].linfty<<", "<<residual2[].linfty<<endl;
+	us = u;
+	Ts = Te;
+    if(residual[].linfty<TOL&&residual2[].linfty<TOL) break;
+    }
+	// plot(u,wait=false,fill=1,value=1);
+    uold = u;
+	Told = Te;
+ } 
+
+output<<"E variable: "<<endl;
+for(int k=0;k<Th.nv;k++)
+{
+	output<<Th(k).x<<"  "<<Th(k).y<<"  "<<u[][k]<<endl;
+}
+output<<"T variable: "<<endl;
+for(int k=0;k<Th.nv;k++)
+{
+	output<<Th(k).x<<"  "<<Th(k).y<<"  "<<Te[][k]<<endl;
+}		
+
+// plot(u,wait=true,fill=1,value=1,ps="Nonlin-2T-E-h256.eps");
+// plot(Te,wait=true,fill=1,value=1,ps="Nonlin-2T-T-h256.eps");
+
+

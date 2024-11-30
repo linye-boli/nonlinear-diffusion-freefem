@@ -2,7 +2,6 @@ include "getARGV.idp"
 // file: heat-2T-Nonlinear-(un)limited_diffusion.edp
 ////////////////////方程参数////////////////////////////
 
-string zcase = getARGV("-zeff", "squares");
 string bcase = getARGV("-beta", "linear");
 string gcase = getARGV("-g", "const");
 real dt = getARGV("-dt", 5.0e-4);
@@ -10,24 +9,9 @@ real TOL = getARGV("-tol", 1.0e-9);
 string outpath = getARGV("-out", "./out.txt");
 
 /************************电离度函数zeff(x)**************/
-//zeff function with two squares holes
-real ax = getARGV("-ax", 3.);
-real ay = getARGV("-ay", 9.);
-real bx = getARGV("-bx", 9.);
-real by = getARGV("-by", 3.);
-func zeffSquares = min((x<(ax+4.)/16.)*(x>ax/16.0)*(y<(ay+4.)/16.)*(y>ay/16.0)*9.0+(x<(bx+4.)/16.)*(x>bx/16.0)*(y<(by+4.)/16.)*(y>by/16.0)*9.0+1.0, 9.0);
-
 //zeff function being discontinuous acorss line x=0.5
 real sx = getARGV("-s", 0.5);
-func zeffLine = (x<sx)*10+(x>=sx)*1;
-
-//zeff function equal to 1.0
-func zeffConst = 1.0;
-
-real zeff;
-if (zcase == "squares") zeff = zeffSquares;
-if (zcase == "line") zeff = zeffLine;
-if (zcase == "const") zeff = zeffConst;
+func zeff = (x<sx)*10+(x>=sx)*1;
 
 /************************Robin边界条件beta函数**********/
 real t1 = getARGV("-t1", 0.5);
@@ -108,7 +92,7 @@ Told =u^(1.0/4.0);
 Ts =u^(1.0/4.0);
 int MAXITER = 100;
 real TOL = 1.0e-9;
-ofstream output("Nonlin-2T-E-T-h256.txt");
+ofstream output(outpath);
 for(real t=0;t<T;t+=dt)
 {
     for(int iter=0;iter<MAXITER;iter++)
