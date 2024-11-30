@@ -15,19 +15,7 @@ real ax = getARGV("-ax", 3.);
 real ay = getARGV("-ay", 9.);
 real bx = getARGV("-bx", 9.);
 real by = getARGV("-by", 3.);
-func zeffSquares = min((x<(ax+4.)/16.)*(x>ax/16.0)*(y<(ay+4.)/16.)*(y>ay/16.0)*9.0+(x<(bx+4.)/16.)*(x>bx/16.0)*(y<(by+4.)/16.)*(y>by/16.0)*9.0+1.0, 9.0);
-
-//zeff function being discontinuous acorss line x=0.5
-real sx = getARGV("-s", 0.5);
-func zeffLine = (x<sx)*10+(x>=sx)*1;
-
-//zeff function equal to 1.0
-func zeffConst = 1.0;
-
-real zeff;
-if (zcase == "squares") zeff = zeffSquares;
-if (zcase == "line") zeff = zeffLine;
-if (zcase == "const") zeff = zeffConst;
+func zeff = min((x<(ax+4.)/16.)*(x>ax/16.0)*(y<(ay+4.)/16.)*(y>ay/16.0)*9.0+(x<(bx+4.)/16.)*(x>bx/16.0)*(y<(by+4.)/16.)*(y>by/16.0)*9.0+1.0, 9.0);
 
 /************************Robin边界条件beta函数**********/
 real t1 = getARGV("-t1", 0.5);
@@ -64,7 +52,7 @@ func real g(real r0, real Tmax, string gcase)
 func source = 0.0;//right volume source，default being zero
 real Beta;//根据当前模拟时刻取beta函数值存为该实数
 //Terminal Time and time step
-real T=1.0;
+real T=0.4;
 //Space domain configuration
 real x0 = 0, x1 = 1;
 real y0 = 0, y1 = 1;
@@ -81,6 +69,7 @@ Vh u, uold, v, us,residual, kappa;
 //plot(Th,wait=false);//plot the mesh
 //Define the diffusion Problem
 int kk=0;
+
 problem Heat(u,v)
 		= int2d(Th)(u*v/dt+kappa*(dx(u)*dx(v)+dy(u)*dy(v)))
  		  +int1d(Th,1,2,3,4)(0.5*u*v)
@@ -101,7 +90,6 @@ for(real t=0;t<T;t+=dt)
     {
 		kappa=1.0/(3.0*zeff^3.0/us^0.75+sqrt(dx(us)^2+dy(us)^2)/us);//单温限流扩散系数D_L
 	 	Beta = beta(t+dt, t1, bmax, bcase);//含时变化的边界条件函数beta
-		//  if (bcase == "zero") Beta = betaZero(t+dt,t1,bmax);//含时变化的边界条件函数beta
 	 	Heat;//solve this problem with P1 FEM
 	 	u = max(u,1.0e-6);//positivity truncation with the initial temperature
 	 	residual = u-us;//compute point-wise residuals

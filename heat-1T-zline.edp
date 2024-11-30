@@ -1,0 +1,110 @@
+include "getARGV.idp"
+// file: heat-1T-Nonlinear-(un)limited_diffusion.edp
+////////////////////方程参数////////////////////////////
+
+string zcase = getARGV("-zeff", "squares");
+string bcase = getARGV("-beta", "linear");
+string gcase = getARGV("-g", "const");
+real dt = getARGV("-dt", 5.0e-4);
+real TOL = getARGV("-tol", 1.0e-9);
+string outpath = getARGV("-out", "./out.txt");
+
+/************************电离度函数zeff(x)**************/
+//zeff function being discontinuous acorss line x=0.5
+real sx = getARGV("-s", 0.5);
+func zeff = (x<sx)*10+(x>=sx)*1;
+
+/************************Robin边界条件beta函数**********/
+real t1 = getARGV("-t1", 0.5);
+real bmax = getARGV("-bmax", 10);
+func real beta(real t, real t1, real BetaMax, string bcase)
+{
+	if (bcase == "linear"){
+		if(t<t1) 
+			return (BetaMax/t1)*t;
+		else
+			return BetaMax;}
+	
+	if (bcase == "zero"){
+		return 0.0;
+	}
+}
+
+/************************初值条件g函数******************/
+//r0为初始高斯半径，Tmax>0为高斯初始峰值
+real r0 = getARGV("-r0", 0.1);
+real Tmax = getARGV("-Tmax", 100);
+func real g(real r0, real Tmax, string gcase) 
+{
+	if (gcase == "const"){
+		return 1.0e-3;
+	}
+
+	if (gcase == "gauss"){
+		return 1.0e-3+Tmax*exp(-(x^2+y^2)/r0^2);
+	}
+}
+
+
+func source = 0.0;//right volume source，default being zero
+real Beta;//根据当前模拟时刻取beta函数值存为该实数
+//Terminal Time and time step
+real T=0.4;
+//Space domain configuration
+real x0 = 0, x1 = 1;
+real y0 = 0, y1 = 1;
+int Nx = 128, Ny = 128;
+//Mesh: Nx*Ny in 2D domain [x0,x1]x[y0,y1]
+mesh Th = square(Nx,Ny,[x0+(x1-x0)*x,y0+(y1-y0)*y]);
+//FEM space: P1 FEM 
+fespace Vh(Th,P1);
+//Some functions belonging to the P1 space
+//u: solution E
+//v: test function
+//kappa: unlimited DUL or limited DL 
+Vh u, uold, v, us,residual, kappa;
+//plot(Th,wait=false);//plot the mesh
+//Define the diffusion Problem
+int kk=0;
+
+problem Heat(u,v)
+		= int2d(Th)(u*v/dt+kappa*(dx(u)*dx(v)+dy(u)*dy(v)))
+ 		  +int1d(Th,1,2,3,4)(0.5*u*v)
+		  -int1d(Th,4)(Beta*v)//4：non-zero Robin only setting on the left-side; be zero on the other sides
+          -int2d(Th)(source*v)
+          -int2d(Th)(uold*v/dt); 
+
+//Begin Time marching
+//initialization u with initial function g 
+u = g(r0, Tmax, gcase);
+uold =u;
+us =u;
+int MAXITER = 100;//max number of nonlinear iterations
+ofstream output(outpath);
+for(real t=0;t<T;t+=dt) 
+{
+    for(int iter=0;iter<MAXITER;iter++)
+    {
+		kappa=1.0/(3.0*zeff^3.0/us^0.75+sqrt(dx(us)^2+dy(us)^2)/us);//单温限流扩散系数D_L
+	 	Beta = beta(t+dt, t1, bmax, bcase);//含时变化的边界条件函数beta
+		//  if (bcase == "zero") Beta = betaZero(t+dt,t1,bmax);//含时变化的边界条件函数beta
+	 	Heat;//solve this problem with P1 FEM
+	 	u = max(u,1.0e-6);//positivity truncation with the initial temperature
+	 	residual = u-us;//compute point-wise residuals
+	 	cout<<"current time: "<<t<<", Iter: "<<iter<<", Max residual: "<<residual[].linfty<<endl;
+	 	us = u;//nonlinear iteration update 
+     	if(residual[].linfty<TOL) break;//break if |u{s}-u{s+1}|_{\linfty}<TOL
+    }
+	// plot(u,wait=false,fill=1,value=1);//绘图 current solution
+    uold = u;//update solution after the nonlinear iterations
+} 
+
+//output solution to txt files--can also being used in the loop for output solution at other times 
+//Now: only output the solution@terminal time  
+for(int k=0;k<Th.nv;k++)
+{
+	output<<Th(k).x<<"  "<<Th(k).y<<"  "<<u[][k]<<endl;
+}	
+// plot(u,wait=true,fill=1,value=1,ps="Nonlin-1T-diffusion.eps");
+
+
