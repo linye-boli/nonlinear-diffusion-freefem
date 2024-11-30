@@ -2,7 +2,6 @@ include "getARGV.idp"
 // file: heat-1T-Nonlinear-(un)limited_diffusion.edp
 ////////////////////方程参数////////////////////////////
 
-string zcase = getARGV("-zeff", "squares");
 string bcase = getARGV("-beta", "linear");
 string gcase = getARGV("-g", "const");
 real dt = getARGV("-dt", 5.0e-4);
@@ -52,7 +51,7 @@ func real g(real r0, real Tmax, string gcase)
 func source = 0.0;//right volume source，default being zero
 real Beta;//根据当前模拟时刻取beta函数值存为该实数
 //Terminal Time and time step
-real T=0.4;
+real T=1.;
 //Space domain configuration
 real x0 = 0, x1 = 1;
 real y0 = 0, y1 = 1;

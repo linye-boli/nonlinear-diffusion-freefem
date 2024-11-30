@@ -16,8 +16,8 @@ if __name__ == "__main__":
                     print(outpath, " EXISTS")
                     exit()
 
-            cmd = "FreeFem++ heat-1T-Nonlinear_diffusion.edp " +\
-                f"-zeff {zcond} -beta {bcond} -g {gcond} " +\
+            cmd = f"FreeFem++ heat-1T-z{zcond}.edp " +\
+                f" -beta {bcond} -g {gcond} " +\
                 f"-dt {dt} -tol {tol} " +\
                 f"-out {outpath}"
             
