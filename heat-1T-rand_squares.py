@@ -14,9 +14,16 @@ if __name__ == "__main__":
         if (idx >= args.n * 100) & (idx < (args.n+1)*100):
             outname = "./heat-1T-zsquares-blinear-gconst/sample_{:}.txt".format(str(idx).zfill(4))
             if os.path.exists(outname):
-                print("file exists : ", outname)
-                pass
+                data = np.loadtxt(outname)
+                if data.shape[0] == 129 * 129:
+                    print("file exists : ", outname)
+                    ispass = True
+                else:
+                    ispass = False
             else:
+                ispass = False
+
+            if not ispass:
                 cmd = "FreeFem++ heat-1T-zsquares.edp " +\
                     "-beta linear -g const " + \
                     "-dt 1.0e-3 -tol 1.0e-3 " +\
