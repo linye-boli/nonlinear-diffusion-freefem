@@ -11,10 +11,10 @@ if __name__ == "__main__":
 
     rand_pts = np.random.rand(1000, 4) * 12 
     for idx, pts in enumerate(rand_pts):
-
         if (idx >= args.n * 100) & (idx < (args.n+1)*100):
             outname = "./heat-1T-zsquares-blinear-gconst/sample_{:}.txt".format(str(idx).zfill(4))
             if os.path.exists(outname):
+                print("file exists : ", outname)
                 pass
             else:
                 cmd = "FreeFem++ heat-1T-zsquares.edp " +\
